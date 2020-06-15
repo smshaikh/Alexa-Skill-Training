@@ -2,7 +2,7 @@
 const Alexa = require('ask-sdk-core');
 const persistenceAdapter = require('ask-sdk-s3-persistence-adapter');
 const skillData = require('./skillData');
-// const util = require('./util');
+const util = require('./util');
 
 /////////////////////////////////
 // Handlers Definition
@@ -59,8 +59,9 @@ const DialogueIntentHandler = {
     // save session attributes
     handlerInput.attributesManager.setSessionAttributes(dataToSave);
 
-    const speakOutput = data.DIALOGUE_MSG + " " + dataToSave.dialogue;
-    const prompt = dataToSave.dialogue;
+    const audioUrl = util.getS3PreSignedUrl(dataToSave.dialogue).replace(/&/g, '&amp;');
+    const speakOutput = data.DIALOGUE_MSG + " " + `<audio src="${audioUrl}"/>`;
+    const prompt = data.GUESS_MOVIE_PROMPT_MSG;
 
     return handlerInput.responseBuilder
       .speak(speakOutput)
@@ -85,8 +86,6 @@ const AnswerIntentHandler = {
     // get persistent data
     const persisData = await handlerInput.attributesManager.getPersistentAttributes() || {};
 
-    console.log("**** HERE 1 ****", JSON.stringify(persisData));
-
     const correctAnswer = sessionData.movie;
     let speakOutput = '';
 
@@ -100,7 +99,6 @@ const AnswerIntentHandler = {
       persisData.userScore -= (persisData.userScore !== undefined) ? 5 : 0;
     }
 
-    console.log("**** HERE 2 ****", JSON.stringify(persisData));
     // set persistent data
     handlerInput.attributesManager.setPersistentAttributes(persisData);
     // save persistent data
@@ -122,7 +120,8 @@ const RepeatIntentHandler = {
 
     const sessionData = handlerInput.attributesManager.getSessionAttributes();
 
-    let speakOutput = 'Ok. Here it is.' + " " + sessionData.dialogue;
+    const audioUrl = util.getS3PreSignedUrl(sessionData.dialogue).replace(/&/g, '&amp;');
+    let speakOutput = 'Ok. Here it is.' + " " + `<audio src="${audioUrl}"/>`;
     let prompt = sessionData.dialogue;
 
     return handlerInput.responseBuilder
@@ -163,7 +162,9 @@ const CancelAndStopIntentHandler = {
         || Alexa.getIntentName(handlerInput.requestEnvelope) === 'AMAZON.StopIntent');
   },
   handle(handlerInput) {
-    const speakOutput = "Goodbye!";
+    const data = skillData[handlerInput.requestEnvelope.request.locale];
+    const audioUrl = util.getS3PreSignedUrl(data.STOP_AUDIO).replace(/&/g, '&amp;');
+    const speakOutput = data.GOODBYE_MSG + `<audio src="${audioUrl}"/>`;
 
     return handlerInput.responseBuilder
       .speak(speakOutput)
